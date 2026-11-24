@@ -6,7 +6,7 @@ from .sender import TimaxSender
 from .sequence import CueSequence
 
 
-HOST = ""
+HOST = "127.0.0.1"
 PORT = 0
 NUM_CUES = 14
 

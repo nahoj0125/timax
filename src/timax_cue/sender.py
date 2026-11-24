@@ -9,6 +9,7 @@ class TimaxSender:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send(self, packet: GoCuePacket) -> None:
+        print("Sending cue", packet.cue, "to", self._adress, "->", packet.to_bytes().hex(" "))
         self._sock.sendto(packet.to_bytes(), self._adress)
 
     def close(self) -> None:
