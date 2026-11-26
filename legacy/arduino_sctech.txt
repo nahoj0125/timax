@@ -1,0 +1,241 @@
+/*
+ Udp NTP Client
+
+ Get the time from a Network Time Protocol (NTP) time server
+ Demonstrates use of UDP sendPacket and ReceivePacket
+ For more on NTP time servers and the messages needed to communicate with them,
+ see http://en.wikipedia.org/wiki/Network_Time_Protocol
+ 
+ #include  <Ethernet.h>
+#include  <SPI.h>
+byte  macAddr [] = {0x5e , 0xa4 , 0x18 , 0xf0 , 0x8a , 0xf6};
+IPAddress  arduinoIP (192, 168, 1, 67);
+IPAddress  dnsIP (192, 168, 1, 254);
+IPAddress  gatewayIP (192, 168, 1, 254);
+IPAddress  subnetIP (255, 255, 255, 0);
+void  setup() {
+Ethernet.begin(mac , arduinoIP , dnsIP , gatewayIP , subnetIP );
+*/
+#include <SPI.h>
+#include <Ethernet.h>
+#include <EthernetUdp.h>
+
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x3F, 16, 2); // Set the LCD address to 0x3F for a 16 chars and 2 line display
+ 
+
+// Enter a MAC address for your controller below.
+// Newer Ethernet shields have a MAC address printed on a sticker on the shield
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xDE};
+IPAddress ip(192, 168, 0, 99);
+IPAddress remoteIP(192, 168, 20, 31);   //Timax IP-adress
+unsigned int remotePort = 59331;
+
+
+// Timax GoCue
+byte cue[] ={0x7D, 0x00, 0x03, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+ 
+unsigned int localPort = 8888;       // local port to listen for UDP packets
+
+char timeServer[] = "ntp2.sptime.se"; //NTP server
+
+const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
+
+byte packetBuffer[ NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
+
+// A UDP instance to let us send and receive packets over UDP
+EthernetUDP Udp;
+
+const int UDP_TX_PACKET_SIZE = 14;
+//byte packetBuffer2[UDP_TX_PACKET_SIZE];
+int x = 0;     //räknar upp que-serien
+int y = 0;     //räknar upp antal mottagna UDP meddelanden
+int z = 0;     //räknar upp antal försök att ansluta till NTP-server
+unsigned long sek = 0;
+unsigned long highWord;
+unsigned long lowWord;
+unsigned long epoch;
+int hh = 0;
+int mi = 0;
+int ss = 0;
+
+void setup() {
+lcd.begin();                                   // initialize the LCD
+lcd.backlight();                               // Turn on the blacklight and print a message.
+lcd.clear();
+
+    lcd.setCursor(0, 0);
+    lcd.print("Hej");
+    
+Ethernet.begin(mac ,ip );
+//  pinMode(2, OUTPUT);
+  // Open serial communications and wait for port to open:
+  Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+  
+  // start Ethernet and UDP
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP");
+    // no point in carrying on, so do nothing forevermore:
+    for (;;)
+      ;
+  }
+  Udp.begin(remotePort);
+  Serial.println("Hej"); 
+}
+
+void loop() {
+    //Serial.println(z);
+    if (z>=2){                                  //om inte UDP svarar
+    Serial.println("Inget eller dåligt Internet");
+     
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Lost NTP-server");
+    lcd.setCursor(0, 1);
+    lcd.print(hh);
+    lcd.print(":");
+    if (mi < 10){
+    lcd.print("0");
+    }
+    lcd.print(mi);
+    lcd.print(":");
+    if (ss < 10){
+    lcd.print("0");
+    }
+    lcd.print(ss);
+    z=z-1; //eller lämplig nuffra
+    }
+  y++;
+  sendNTPpacket(timeServer); // send an NTP packet to a time server
+ 
+  // wait to see if a reply is available
+ 
+  if (Udp.parsePacket()) {
+    // We've received a packet, read the data from it
+    z=0;
+    Udp.read(packetBuffer, NTP_PACKET_SIZE);              // read the packet into the buffer
+
+    // the timestamp starts at byte 40 of the received packet and is four bytes,
+    // or two words, long. First, extract the two words:
+
+    highWord = word(packetBuffer[40], packetBuffer[41]);
+     lowWord = word(packetBuffer[42], packetBuffer[43]);
+    // combine the four bytes (two words) into a long integer
+    // this is NTP time (seconds since Jan 1 1900):
+    unsigned long secsSince1900 = highWord << 16 | lowWord;
+
+if (sek!=lowWord){
+    cuearray();
+    printTime();                                            //printar varje sekund
+    printLCD();
+    Serial.print("antal tidsläsningar denna sekund  ");
+    Serial.println(y-1);
+    y=0;
+    
+    if ((lowWord-sek)>=2){
+    Serial.println("Inget eller dåligt Internet");          //eller tänd diod
+    }
+    sek=lowWord;
+    }
+
+    // now convert NTP time into everyday time:
+    //Serial.print("Unix time = ");
+    // Unix time starts on Jan 1 1970. In seconds, that's 2208988800:
+    const unsigned long seventyYears = 2208988800UL;
+    // subtract seventy years:
+    epoch = secsSince1900 - seventyYears;
+    // print Unix time:
+     
+  }
+  Ethernet.maintain();
+}
+
+// send an NTP request to the time server at the given address
+void sendNTPpacket(char* address) {
+  // set all bytes in the buffer to 0
+  memset(packetBuffer, 0, NTP_PACKET_SIZE);
+  // Initialize values needed to form NTP request
+  // (see URL above for details on the packets)
+  packetBuffer[0] = 0b11100011;   // LI, Version, Mode
+  packetBuffer[1] = 0;     // Stratum, or type of clock
+  packetBuffer[2] = 6;     // Polling Interval
+  packetBuffer[3] = 0xEC;  // Peer Clock Precision
+  // 8 bytes of zero for Root Delay & Root Dispersion
+  packetBuffer[12]  = 49;
+  packetBuffer[13]  = 0x4E;
+  packetBuffer[14]  = 49;
+  packetBuffer[15]  = 52;
+
+  // all NTP fields have been given values, now
+  // you can send a packet requesting a timestamp:
+  Udp.beginPacket(address, 123); //NTP requests are to port 123
+  Udp.write(packetBuffer, NTP_PACKET_SIZE);
+  Udp.endPacket();
+  z++;
+}
+
+void cuearray() {
+    x++;                                      // Count from 1 to 14            
+    cue[7] = 0x0+x;                           // Increase byte by 1                                      
+    Serial.println("--------------  ");
+    Serial.print("QUE nr:");
+    Serial.println(x);
+    Udp.beginPacket(remoteIP, remotePort);
+    Udp.write(cue, UDP_TX_PACKET_SIZE);       // Write Byte to unit with UDP 
+    Udp.endPacket();
+    if (x == 14){x = 0;}
+} 
+
+
+void printTime()  {
+    Serial.print("UTC ="); 
+ // print the hour, minute and second:
+    //Serial.print("The UTC time is ");       // UTC is the time at Greenwich Meridian (GMT)
+    Serial.print((epoch  % 86400L) / 3600);   // print the hour (86400 equals secs per day)
+    Serial.print(':');
+    if (((epoch % 3600) / 60) < 10) {
+                                              // In the first 10 minutes of each hour, we'll want a leading '0'
+      Serial.print('0');
+    }
+    Serial.print((epoch  % 3600) / 60);       // print the minute (3600 equals secs per minute)
+    Serial.print(':');
+    if ((epoch % 60) < 10) {
+                                              // In the first 10 seconds of each minute, we'll want a leading '0'
+      Serial.print('0');
+    }
+    Serial.println(epoch % 60); // print the second 
+}
+
+void printLCD()  {
+hh = ((epoch  % 86400L) / 3600);
+mi = ((epoch  % 3600) / 60);
+ss = (epoch % 60);
+ 
+      
+lcd.clear();
+
+    lcd.setCursor(0, 0);
+    lcd.print("ntp2.sptime.se");
+     
+    lcd.setCursor(0, 1);
+    lcd.print("UMT:");
+    if (hh < 10){
+    lcd.print("0");
+    }
+    lcd.print(hh);
+    lcd.print(":");
+    if (mi < 10){
+    lcd.print("0");
+    }
+    lcd.print(mi);
+    lcd.print(":");
+    if (ss < 10){
+    lcd.print("0");
+    }
+    lcd.print(ss);
+}
+
+ 
