@@ -1,10 +1,12 @@
 """Start of the program. Run with: python -m timax_cue"""
 import time
+import logging
 
 from .clock import SecondClock
 from .packet import GoCuePacket
 from .sender import TimaxSender
 from .sequence import CueSequence
+from .logsetup import setup_logging
 from .timesync import resync_clock
 
 HOST = "192.168.0.7" # The IP adress to send to
@@ -18,11 +20,11 @@ def main() -> None:
     cues = CueSequence(NUM_CUES)
     sender = TimaxSender(HOST, PORT)
 
-    print("Syncing the clock with NTP...")
+    logging.info("Syncing the clock with...", NTP_SERVER)
     if resync_clock(NTP_SERVER):
-        print("Clock synced.")
+        logging.info("Clock synced.")
     else:
-        print("Continuing anyway, but cues may be off")
+        logging.warning("Continuing anyway, but cues may be off")
 
     while True:
         second = clock.wait_for_next_second()
@@ -31,10 +33,10 @@ def main() -> None:
         try:
             sender.send(packet)
         except OSError as err:
-            print(f"WARNING: could not send cue {cue}: {err}")
+            logging.warning("Could not send cue %d: %s", cue, err)
 
         utc = time.strftime("%H:%M:%S", time.gmtime(second))
-        print(f"{utc} UTC cue {cue}")
+        logging.info("%s UTC  cue %d", utc, cue)
 
 
 if __name__ == "__main__":
