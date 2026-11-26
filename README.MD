@@ -1,5 +1,26 @@
 # TiMax Cue
 
+Sends a "go to cue" message to a TiMax unit over UDP once every second, counting cues 1–14 and then starting over. Timing comes from the computer's clock, which is synced with an NTP server when the program starts.
+
+## Install
+
+Needs Windows, Python 3.11+ (tick "Add python.exe to PATH") and Git.
+
+```bash
+git clone <repo-url> timax
+cd timax
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -e .
+```
+
+## Run manually
+```bash
+python -m timax_cue
+```
+
+Click Yes when Windows asks for permission (needed to sync the clock). Stop with Ctrl+C.
+
 ## Configure NTP Server
 Simply change the varible in \_\_main__.py
 ```python
@@ -60,6 +81,9 @@ Get-Content C:\Users\servi\timax\timax.log -Wait -Tail 10
 The cues should appear. 
 
 To change anything later, right-click the task and choose Properties.
+
+## Logs
+Written to logs/timax.log. A new file starts every hour, and only the last ~3 hours are kept.
 
 ## What to do when TiMax is not reacting?
 In order: is the task running → are cues in the log → are there "could not send" warnings → does ping reach the TiMax → is UDP control enabled in the TiMax.
