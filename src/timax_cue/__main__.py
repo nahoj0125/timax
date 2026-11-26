@@ -1,3 +1,4 @@
+"""Start of the program. Run with: python -m timax_cue"""
 import time
 
 from .clock import SecondClock
@@ -5,10 +6,9 @@ from .packet import GoCuePacket
 from .sender import TimaxSender
 from .sequence import CueSequence
 
-
-HOST = "127.0.0.1"
-PORT = 0
-NUM_CUES = 14
+HOST = "192.168.0.7" # The IP adress to send to
+PORT = 59331 # UDP Port the timax listens to
+NUM_CUES = 26 # Number of cues to cycle through
 
 
 def main() -> None:
