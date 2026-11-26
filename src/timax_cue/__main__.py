@@ -5,6 +5,7 @@ from .clock import SecondClock
 from .packet import GoCuePacket
 from .sender import TimaxSender
 from .sequence import CueSequence
+from .timesync import resync_clock
 
 HOST = "192.168.0.7" # The IP adress to send to
 PORT = 59331 # UDP Port the timax listens to
@@ -15,6 +16,12 @@ def main() -> None:
     clock = SecondClock()
     cues = CueSequence(NUM_CUES)
     sender = TimaxSender(HOST, PORT)
+
+    print("Syncing the clock with NTP...")
+    if resync_clock():
+        print("Clock synced.")
+    else:
+        print("Continuing anyway, but cues may be off")
 
     while True:
         second = clock.wait_for_next_second()
